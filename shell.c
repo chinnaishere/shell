@@ -187,13 +187,13 @@ int main(int argc, char **argv){
             return 1;
         }
         
-        printf("number of tokens: %d\n\nTokens are:\n", tokensSize);
+      //  printf("number of tokens: %d\n\nTokens are:\n", tokensSize);
         int i;
         for (i = 0; i < tokensSize; ++i) {
             printf(format(&tokens[i]), buffer + tokens[i].start);
         }
 
-        printf("number of commands: %d\n\nCommands are:\n", cmdsSize);
+       // printf("number of commands: %d\n\nCommands are:\n", cmdsSize);
         tokensToCommands(buffer, tokens, tokensSize, cmds, &cmdsSize);
         for (i = 0; i < cmdsSize; ++i) {
             printf("%s - %s\n", cmds[i].cmd, cmds[i].args);
