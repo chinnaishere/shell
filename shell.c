@@ -1,16 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/wait.h>
 
 #define BUFSIZE 1000
 
 char formatBuffer[10];
-
-void exitShell(void);
-void cdShell(void);
 
 struct Builtins { 
 	char *name; /* name of function */ 
@@ -155,10 +149,9 @@ void tokensToCommands(char *buffer, Token *tokens, int tokensSize, Command *cmds
 
 }
 
-int main(int argc, char **argv){
-    int pid, status;
-
-    	//create builtins
+int main(int argc, char **argv)
+{
+	//create builtins
 	struct Builtins builtins[2];
 	builtins[0].name = "cd";
 	builtins[1].name = "exit";
@@ -171,12 +164,9 @@ int main(int argc, char **argv){
 	Command cmds[50];
 	int cmdsSize = 0;
 
-	//needed for path to pass to exec
-	char* path = "/bin/";
-
 	char buffer[BUFSIZE];
-	while (1){
-
+	while (1)
+	{
 		fgets(buffer, BUFSIZE, stdin);
 		int buflen = strlen(buffer)-1;
 		buffer[buflen] = '\0'; //remove '\n'
@@ -200,52 +190,7 @@ int main(int argc, char **argv){
 		tokensSize = 0;
 		cmdsSize = 0;
 
-		//first try pipe for two commands
-		int pipefd[2];
-
-		pid = fork();
-
-		if(pid < 0){
-			//error
-            fprintf(stderr, "Fork failure.\n");
-		}else if(pid == 0){
-             //in child process
-            //another command means need to fork again
-            pid = fork();
-
-            if(pid < 0){
-                fprintf(stderr, "Fork failure.\n");
-            }else if(pid == 0){
-                //in child process
-                close(pipefd[0]);
-                dup2(pipefd[1], 1); 
-                close(pipefd[1]);
-
-                char binpath[512];
-                //First we copy a /bin/ to prog
-                strcpy(binpath, path);
-                //Then we concancate the program name to /bin/
-                //If the program name is ls, then it'll be /bin/ls
-                strcat(binpath, cmds[0].cmd);
-                execl(binpath, (char *)cmds[0].args);
-
-            }else{
-                //wait for child processes to die, this is the parent
-                close(pipefd[1]); 
-                dup2(pipefd[0], 0);
-                close(pipefd[0]);
-
-                char binpath[512];
-                strcpy(binpath, path);
-                strcat(binpath, cmds[0].cmd);
-                execl(binpath, (char *)cmds[0].args);
-            }
-
-	    }else{
-	    	//wait for child processes to die, this is the parent
-
-	        pid = wait(&status);
-	    }
+	//	printf("MSG:\"%s\"\n", buffer);
 	}
-    return(0);
+	return 0;
 }
