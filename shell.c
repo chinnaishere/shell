@@ -16,6 +16,11 @@ typedef struct Token {
 	int len;
 } Token;
 
+typedef struct Command {
+	char *cmd; //cmd to call
+	char *args; //args to pass to that call
+} Command;
+
 int parse(char *buffer, int buflen, Token *tokens, int *tokensSize, int argc, char **argv)
 {
 	int i, dQuoteOpen=0, sQuoteOpen=0;
@@ -84,14 +89,64 @@ int parse(char *buffer, int buflen, Token *tokens, int *tokensSize, int argc, ch
 
 char *format(Token *token)
 {
-			formatBuffer[0] = '%';
-			formatBuffer[1] = '.';
-			formatBuffer[2] = '\0';
-			char len[5];
-			sprintf(len, "%d", token->len);
-			strcat(formatBuffer, len);
-			strcat(formatBuffer, "s\n");
-			return formatBuffer;
+	formatBuffer[0] = '%';
+	formatBuffer[1] = '.';
+	formatBuffer[2] = '\0';
+	char len[5];
+	sprintf(len, "%d", token->len);
+	strcat(formatBuffer, len);
+	strcat(formatBuffer, "s\n");
+	return formatBuffer;
+}
+
+void tokensToCommands(char *buffer, Token *tokens, int tokensSize, Command *cmds, int *cmdsSize)
+{
+	int start = 0;
+	int i;
+	for (i = 0; i < tokensSize; ++i) {
+		if (tokens[i].len == 1 && buffer[tokens[i].start] == '|') {
+			char *tok = (char *)malloc(sizeof(char)*(tokens[start].len + 1));
+			tok[0] = '\0';
+			strncat(tok, buffer + tokens[start].start, tokens[start].len);
+			cmds[*cmdsSize].cmd = tok;
+			
+			int j, argsize = 0;
+			for (j = start+1; j < i; ++j) //go through all tokens up to the pipe which is in cell i, count size to malloc
+				argsize += tokens[j].len + 1; //plus 1 for space and/or nul terminator
+			tok = (char *)malloc(sizeof(char)*(argsize));
+			tok[0] = '\0';
+			for (j = start+1; j < i; ++j) { //go through all tokens up to the pipe which is in cell i
+				strncat(tok, buffer + tokens[j].start, tokens[j].len);
+				if (j < i-1)
+					strncat(tok, " ", 1);
+			}
+
+			cmds[*cmdsSize].args = tok;
+			++(*cmdsSize);
+			start = ++i;
+		}
+	}
+
+	//last command, not going  to be "commandized" in loop
+	char *tok = (char *)malloc(sizeof(char)*(tokens[start].len + 1));
+	tok[0] = '\0';
+	strncat(tok, buffer + tokens[start].start, tokens[start].len);
+	cmds[*cmdsSize].cmd = tok;
+
+	int j, argsize = 0;
+	for (j = start+1; j < i; ++j) //go through all tokens up to the pipe which is in cell i, count size to malloc
+		argsize += tokens[j].len + 1; //plus 1 for space and/or nul terminator
+	tok = (char *)malloc(sizeof(char)*(argsize + 1));
+	tok[0] = '\0';
+	for (j = start+1; j < i; ++j) {//go through all tokens up to the pipe which is in cell i
+		strncat(tok, buffer + tokens[j].start, tokens[j].len);
+		if (j < i-1)
+			strncat(tok, " ", 1);
+	}
+
+	cmds[*cmdsSize].args = tok;
+	++(*cmdsSize);
+
 }
 
 int main(int argc, char **argv)
@@ -104,6 +159,10 @@ int main(int argc, char **argv)
 	//create tokens array
 	Token tokens[50];
 	int tokensSize = 0; //Number of elements in Token array
+
+	//create commands array
+	Command cmds[50];
+	int cmdsSize = 0;
 
 	char buffer[BUFSIZE];
 	while (1)
@@ -122,7 +181,14 @@ int main(int argc, char **argv)
 			printf(format(&tokens[i]), buffer + tokens[i].start);
 		}
 
+		printf("number of commands: %d\n\nCommands are:\n", cmdsSize);
+		tokensToCommands(buffer, tokens, tokensSize, cmds, &cmdsSize);
+		for (i = 0; i < cmdsSize; ++i) {
+			printf("%s - %s\n", cmds[i].cmd, cmds[i].args);
+		}
+
 		tokensSize = 0;
+		cmdsSize = 0;
 
 	//	printf("MSG:\"%s\"\n", buffer);
 	}
