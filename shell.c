@@ -71,10 +71,13 @@ int parse(char *buffer, int buflen, Token *tokens, int *tokensSize, int argc, ch
 	}
 
 	if (start > -1) { //loop ended with last token still not added to array
+		if (dQuoteOpen || sQuoteOpen)
+			return 1; //error
 		tokens[*tokensSize].start = start;
 		tokens[*tokensSize].len = i - start;
 		++(*tokensSize);
 	}
+
 
 	return 0;
 }
