@@ -1,5 +1,5 @@
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -8,9 +8,6 @@
 #define BUFSIZE 1000
 
 char formatBuffer[10];
-
-void exitShell(void);
-void cdShell(void);
 
 struct Builtins { 
     char *name; /* name of function */ 
@@ -26,6 +23,11 @@ typedef struct Command {
     char *cmd; //cmd to call
     char *args; //args to pass to that call
 } Command;
+
+void runonecmd(Command *cmd);
+void runcmd(int in, int out, Command *cmd);   /* pk: changed char * to char ** */
+void exitShell(void);
+void cdShell(void);
 
 int parse(char *buffer, int buflen, Token *tokens, int *tokensSize, int argc, char **argv)
 {
@@ -155,10 +157,16 @@ void tokensToCommands(char *buffer, Token *tokens, int tokensSize, Command *cmds
 
 }
 
+/*set command and token memory to null for next userinput*/
+void reset(Command cmds[50], Token tokens[50]){
+    for(int k = 0; k <= 49; k++){
+        cmds[k].cmd = NULL;
+        cmds[k].args = NULL;
+        tokens[k].start = 0;
+        tokens[k].len = 0;
+    }
+}
 int main(int argc, char **argv){
-
-    //pid and status for forking
-    int pid, status;
 
     //create builtins
     struct Builtins builtins[2];
@@ -173,87 +181,114 @@ int main(int argc, char **argv){
     Command cmds[50];
     int cmdsSize = 0;
 
-    //needed for path to pass to exec
-    char* path = "/bin/";
-
     char buffer[BUFSIZE];
-    while (1){
+    int pid, status;
 
+    int currcmd = 0;
+    while (1){
         fgets(buffer, BUFSIZE, stdin);
         int buflen = strlen(buffer)-1;
-        buffer[buflen] = '\0'; //remove '\n'
+        buffer[buflen] = '\0';
+
         if (parse(buffer, buflen, tokens, &tokensSize, argc, argv) > 0) {
             fprintf(stderr, "Failed on parsing arguments, invalid input.\n");
             return 1;
         }
-        
-      //  printf("number of tokens: %d\n\nTokens are:\n", tokensSize);
-        int i;
-        for (i = 0; i < tokensSize; ++i) {
-            printf(format(&tokens[i]), buffer + tokens[i].start);
-        }
 
-       // printf("number of commands: %d\n\nCommands are:\n", cmdsSize);
         tokensToCommands(buffer, tokens, tokensSize, cmds, &cmdsSize);
-        for (i = 0; i < cmdsSize; ++i) {
-            printf("%s - %s\n", cmds[i].cmd, cmds[i].args);
+        printf("command size: %d\n",cmdsSize);
+        //pipe array, amount of commands -1, two file descriptors
+         int fd[cmdsSize-1][2];
+         //initializes pipe array
+        for(int k = 0; k < (cmdsSize-1); k++){
+            fd[k][0] = 0;
+            fd[k][1] = 0;
         }
-
-        tokensSize = 0;
-        cmdsSize = 0;
-
-        //here check builtins for 
-
-        //first try pipe for two commands
-        int pipefd[2];
-
-        pid = fork();
-
-        if(pid < 0){
-            //error
-            fprintf(stderr, "Fork failure.\n");
-        }else if(pid == 0){
-             //in child process
-            //another command means need to fork again
-            pid = fork();
-
-            if(pid < 0){
-                fprintf(stderr, "Fork failure.\n");
-            }else if(pid == 0){
-                //in child process
-
-                //two pipes between two processes
-                close(pipefd[0]); //child does not need the end of this pipe
-                dup2(pipefd[1], 1); 
-                close(pipefd[1]);
-
-                //temporary path used to cat command after to pass to exec
-                char binpath[1024];
-
-                strcpy(binpath, path);
-                strcat(binpath, cmds[0].cmd);
-
-                execl(binpath, (char *)cmds[0].args);
-
-            }else{
-                //wait for child processes to die, this is the parent
-                close(pipefd[1]); //parent does not need the end of this pipe
-                dup2(pipefd[0], 0);
-                close(pipefd[0]);
-
-                //temporary path used to cat command after to pass to exec
-                char binpath[1024];
-                strcpy(binpath, path);
-                strcat(binpath, cmds[0].cmd);
-
-                execl(binpath, (char *)cmds[0].args);
-            }
-
+        //if there is only one command, no pipes are needed
+        if(cmdsSize == 1){
+            runonecmd(&cmds[0]);
+            break;
         }else{
-            //wait for child processes to die, this is the parent
-            //print status
-            pid = wait(&status);
+            //open and close pipes for every command
+            while(currcmd < cmdsSize){
+                if(currcmd == 0){
+                    printf("calling source\n");
+                    pipe(fd[currcmd]);
+                    runcmd(-1, fd[currcmd][1], &cmds[currcmd]);
+                    close(fd[currcmd][1]);
+                }else if(currcmd != (cmdsSize-1)){
+                    pipe(fd[currcmd]);
+                    runcmd(fd[currcmd-1][0], fd[currcmd][1], &cmds[currcmd]);
+                    close(fd[currcmd-1][0]);
+                    close(fd[currcmd][1]);
+                }else{
+                    printf("calling destination\n");
+                    runcmd(fd[currcmd-1][0], -1, &cmds[currcmd]);
+                    close(fd[currcmd-1][0]);
+                }
+                currcmd++;
+            }
+            //closes all pipes
+            for(int j = 0; j < (cmdsSize-1); j++){
+                close(fd[j][0]);
+                close(fd[j][1]);
+            }
         }
+
+        //pick up all dead children and print process status
+        while ((pid = wait(&status)) != -1){
+            fprintf(stderr, "process %d exits with %d\n", pid, WEXITSTATUS(status));
+        }
+        reset(cmds,tokens);
+        cmdsSize = 0;
+        tokensSize = 0;
+        }
+    exit(0);
+}
+
+/*
+runcmd is sed to run commands with multiple pipes that change the input source and destination.
+*/
+void runcmd(int in, int out, Command * cmd){
+    int pid;
+
+    switch (pid = fork()) {
+
+    case 0: //child
+        if (in >= 0) dup2(in, 0);   //change input source
+        if (out >= 0) dup2(out, 1);     //change input destination
+      //  fprintf(stderr, "execvp(\"%s\"), args: %s\n", cmd[0].cmd,cmd[0].args); 
+        execvp(cmd[0].cmd, &cmd[0].args); 
+        perror(cmd[0].cmd);  //something went wrong!
+
+    default: //parent
+        break;
+
+    case -1:
+        perror("fork");
+        exit(1);
     }
-    return(0);
+}
+/*
+runonecmd is sed to run single commands, without using any instances of pipes.
+*/
+void runonecmd(Command * cmd){
+    int pid;
+    char* temp[] = {cmd[0].cmd, cmd[0].args, NULL};
+    switch (pid = fork()) {
+
+    case 0: 
+        //child
+        //fprintf(stderr, "execvp(\"%s\"), args: %s\n", cmd[0].cmd,temp);
+        execvp(cmd[0].cmd, temp);  //run command
+        perror(cmd[0].cmd);    //something went wrong!
+
+    default: 
+        //parent does nothing
+        break;
+
+    case -1:
+        perror("fork");
+        exit(1);
+    }
 }
