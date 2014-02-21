@@ -274,13 +274,13 @@ runonecmd is sed to run single commands, without using any instances of pipes.
 */
 void runonecmd(Command * cmd){
     int pid;
-    char* temp[] = {cmd[0].cmd, cmd[0].args, NULL};
+   // char* temp[] = {cmd[0].cmd, cmd[0].args, NULL};
     switch (pid = fork()) {
 
     case 0: 
         //child
         //fprintf(stderr, "execvp(\"%s\"), args: %s\n", cmd[0].cmd,temp);
-        execvp(cmd[0].cmd, temp);  //run command
+        execvp(cmd[0].cmd, &cmd[0].args);  //run command
         perror(cmd[0].cmd);    //something went wrong!
 
     default: 
