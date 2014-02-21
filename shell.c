@@ -159,7 +159,7 @@ void tokensToCommands(char *buffer, Token *tokens, int tokensSize, Command *cmds
 
 /*set command and token memory to null for next userinput*/
 void reset(Command cmds[50], Token tokens[50]){
-	  int k;
+      int k;
     for(k = 0; k <= 49; k++){
         cmds[k].cmd = NULL;
         cmds[k].args = NULL;
@@ -201,7 +201,7 @@ int main(int argc, char **argv){
         //pipe array, amount of commands -1, two file descriptors
          int fd[cmdsSize-1][2];
          //initializes pipe array
-				int k;
+                int k;
         for(k = 0; k < (cmdsSize-1); k++){
             fd[k][0] = 0;
             fd[k][1] = 0;
@@ -231,7 +231,7 @@ int main(int argc, char **argv){
                 currcmd++;
             }
             //closes all pipes
-						int j;
+                        int j;
             for(j = 0; j < (cmdsSize-1); j++){
                 close(fd[j][0]);
                 close(fd[j][1]);
@@ -260,7 +260,7 @@ void runcmd(int in, int out, Command * cmd){
     case 0: //child
         if (in >= 0) dup2(in, 0);   //change input source
         if (out >= 0) dup2(out, 1);     //change input destination
-      //  fprintf(stderr, "execvp(\"%s\"), args: %s\n", cmd[0].cmd,cmd[0].args); 
+      fprintf(stderr, "execvp(\"%s\"), args: %s\n", cmd[0].cmd,cmd[0].args); 
         execvp(cmd[0].cmd, &cmd[0].args); 
         perror(cmd[0].cmd);  //something went wrong!
 
@@ -282,7 +282,7 @@ void runonecmd(Command * cmd){
 
     case 0: 
         //child
-        //fprintf(stderr, "execvp(\"%s\"), args: %s\n", cmd[0].cmd,temp);
+        fprintf(stderr, "execvp(\"%s\"), args: %s\n", cmd[0].cmd);
         execvp(cmd[0].cmd, &cmd[0].args);  //run command
         perror(cmd[0].cmd);    //something went wrong!
 
