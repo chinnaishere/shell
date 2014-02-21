@@ -119,11 +119,11 @@ void tokensToCommands(char *buffer, Token *tokens, int tokensSize, Command *cmds
             cmds[*cmdsSize].cmd = tok;
             
             int j, argsize = 0;
-            for (j = start+1; j < i; ++j) //go through all tokens up to the pipe which is in cell i, count size to malloc
+            for (j = start; j < i; ++j) //go through all tokens up to the pipe which is in cell i, count size to malloc
                 argsize += tokens[j].len + 1; //plus 1 for space and/or nul terminator
             tok = (char *)malloc(sizeof(char)*(argsize));
             tok[0] = '\0';
-            for (j = start+1; j < i; ++j) { //go through all tokens up to the pipe which is in cell i
+            for (j = start; j < i; ++j) { //go through all tokens up to the pipe which is in cell i
                 strncat(tok, buffer + tokens[j].start, tokens[j].len);
                 if (j < i-1)
                     strncat(tok, " ", 1);
@@ -142,11 +142,11 @@ void tokensToCommands(char *buffer, Token *tokens, int tokensSize, Command *cmds
     cmds[*cmdsSize].cmd = tok;
 
     int j, argsize = 0;
-    for (j = start+1; j < i; ++j) //go through all tokens up to the pipe which is in cell i, count size to malloc
+    for (j = start; j < i; ++j) //go through all tokens up to the pipe which is in cell i, count size to malloc
         argsize += tokens[j].len + 1; //plus 1 for space and/or nul terminator
     tok = (char *)malloc(sizeof(char)*(argsize + 1));
     tok[0] = '\0';
-    for (j = start+1; j < i; ++j) {//go through all tokens up to the pipe which is in cell i
+    for (j = start; j < i; ++j) {//go through all tokens up to the pipe which is in cell i
         strncat(tok, buffer + tokens[j].start, tokens[j].len);
         if (j < i-1)
             strncat(tok, " ", 1);
@@ -159,7 +159,8 @@ void tokensToCommands(char *buffer, Token *tokens, int tokensSize, Command *cmds
 
 /*set command and token memory to null for next userinput*/
 void reset(Command cmds[50], Token tokens[50]){
-    for(int k = 0; k <= 49; k++){
+	  int k;
+    for(k = 0; k <= 49; k++){
         cmds[k].cmd = NULL;
         cmds[k].args = NULL;
         tokens[k].start = 0;
@@ -200,7 +201,8 @@ int main(int argc, char **argv){
         //pipe array, amount of commands -1, two file descriptors
          int fd[cmdsSize-1][2];
          //initializes pipe array
-        for(int k = 0; k < (cmdsSize-1); k++){
+				int k;
+        for(k = 0; k < (cmdsSize-1); k++){
             fd[k][0] = 0;
             fd[k][1] = 0;
         }
@@ -229,7 +231,8 @@ int main(int argc, char **argv){
                 currcmd++;
             }
             //closes all pipes
-            for(int j = 0; j < (cmdsSize-1); j++){
+						int j;
+            for(j = 0; j < (cmdsSize-1); j++){
                 close(fd[j][0]);
                 close(fd[j][1]);
             }
