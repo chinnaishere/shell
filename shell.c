@@ -9,11 +9,6 @@
 
 char formatBuffer[10];
 
-struct Builtins{ 
-	char *name; /* name of function */ 
-	int (*f)(); /* function to execute for the built-in command */ 
-};
-
 typedef struct Token {
 	int start;
 	int len;
@@ -25,10 +20,18 @@ typedef struct Command {
 	int fd[2];
 } Command;
 
+struct Builtins{ 
+	char *name; /* name of function */ 
+	void (*f)(Command *); /* function to execute for the built-in command */ 
+};
+
 void runonecmd(Command * cmd);
 void runcmd(int in, int out, char **cmd);
 void exitShell(void);
 void cdShell(void);
+void shell_cd(Command *);
+void shell_exit(Command *);
+int checkBuiltins(Command *cmd, struct Builtins *builtins);
 
 int parse(char *buffer, int buflen, Token *tokens, int *tokensSize, int argc, char **argv){
 	int i, dQuoteOpen=0, sQuoteOpen=0;
@@ -147,7 +150,9 @@ int main(int argc, char **argv){
 	//create builtins
 	struct Builtins builtins[2];
 	builtins[0].name = "cd";
+	builtins[0].f = &shell_cd;
 	builtins[1].name = "exit";
+	builtins[1].f = &shell_exit;
 
 	//create tokens array
 	Token tokens[50];
@@ -162,6 +167,7 @@ int main(int argc, char **argv){
 
 
 	while (1){
+		printf("\n$ ");
 		fgets(buffer, BUFSIZE, stdin);
 		int buflen = strlen(buffer)-1;
 		buffer[buflen] = '\0';
@@ -184,6 +190,11 @@ int main(int argc, char **argv){
 
 		//when there is only one command, no pipes are needed
 		if(cmdsSize == 1){
+			if (checkBuiltins(&cmds[0], builtins)) {
+				cmdsSize = 0;
+				tokensSize = 0;
+				continue;
+			}
 			runonecmd(&cmds[0]);
 		}else{
 			//show when you try any commands that have at least one pipe.
@@ -192,7 +203,6 @@ int main(int argc, char **argv){
 				allcommands[i] = cmds[i].cmdargv;
 
 
-//			cmdsSize = 4;
 			int currcmd = 0;
 			//runs the amount of commands inputted
 			while(currcmd < cmdsSize){
@@ -279,4 +289,45 @@ void runonecmd(Command * cmd){
 			perror("fork");
 			exit(1);
 	}
+}
+
+void shell_cd(Command *cmd)
+{
+	if (cmd->cmdargc == 1) { //change to home dir
+		if (chdir(getenv("HOME")) == -1) {
+			perror("ERROR: Failed to change to HOME dir.");
+			return;
+		}
+	} else if (cmd->cmdargc == 2) { //change to path
+		if (chdir(cmd->cmdargv[1]) == -1) {
+			perror("ERROR: Failed to change dir.");
+			return;
+		}
+	} else {
+		fprintf(stderr, "ERROR:Invalid number of arguments for cd\n");
+		return;
+	}
+	//print current working dir
+	char *dir = getcwd(NULL, 200);
+	printf("\n%s", dir);
+	free(dir);
+}
+
+void shell_exit(Command *cmd)
+{
+	if (cmd->cmdargc == 1)
+		exit(0);
+	int code = atoi(cmd->cmdargv[1]);
+	exit(code);
+}
+
+int checkBuiltins(Command *cmd, struct Builtins builtins[])
+{
+	int i;
+	for (i = 0; i < 2; ++i)
+		if (strcmp(cmd->cmdargv[0], builtins[i].name) == 0) {
+			(*builtins[i].f)(cmd);
+			return 1;
+		}
+	return 0;
 }
