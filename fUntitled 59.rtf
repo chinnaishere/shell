@@ -1,0 +1,120 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1265
+{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+\margl1440\margr1440\vieww10800\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural
+
+\f0\fs24 \cf0 #include <stdlib.h>\
+#include <stdio.h>\
+\
+char *cmd1[] = \{ "ls", "-al", "/", 0 \};\
+char *cmd2[] = \{ "tr", "a-z", "A-Z", 0 \};\
+char *cmd3[] = \{ "sort", 0 \};\
+char *cmd4[] = \{ "wc", 0 \};\
+\
+void runsource(int pfd[], char* cmd[]);\
+void runmiddle(int pfd[], char* cmd[], int pos);\
+void rundest(int pfd[], char* cmd[], int pos);\
+\
+int\
+main(int argc, char **argv)\
+\{\
+        int pid, status;\
+        int fd[6];\
+\
+        pipe(fd);\
+        pipe(fd+2);\
+        pipe(fd+4);\
+\
+        runsource(fd, cmd1);\
+        runmiddle(fd,cmd2,2);\
+        runmiddle(fd,cmd3,4);\
+        rundest(fd,cmd4,6);\
+\
+        close(fd[0]); close(fd[1]);  /* this is important! close both file descriptors on\
+the pipe */\
+        close(fd[2]); close(fd[3]);\
+        close(fd[4]); close(fd[5]);\
+\
+        while ((pid = wait(&status)) != -1)        /* pick up all the dead children */\
+                fprintf(stderr, "process %d exits with %d\\n", pid, WEXITSTATUS(status));\
+        exit(0);\
+\}\
+\
+\
+void runsource(int pfd[], char*cmd[])        /* run the first part of the pipeline, cmd1 */\
+\{\
+        int pid;        /* we don't use the process ID here, but you may wnat to print it for\
+debugging */\
+\
+        switch (pid = fork()) \{\
+\
+        case 0: /* child */\
+                dup2(pfd[1], 1);        /* this end of the pipe becomes the standard output */\
+                close(pfd[0]);                 /* this process don't need the other end */\
+                close(pfd[2]);\
+                close(pfd[3]);\
+                execvp(cmd[0], cmd);        /* run the command */\
+                perror(*cmd);        /* it failed! */\
+\
+        default: /* parent does nothing */\
+                break;\
+\
+        case -1:\
+                perror("fork");\
+                exit(1);\
+        \}\
+\}\
+\
+void runmiddle(int pfd[], char*cmd[], int pos)        /* run the first part of the pipeline, cmd1 */\
+\{\
+        int pid;        /* we don't use the process ID here, but you may wnat to print it for\
+debugging */\
+\
+        switch (pid = fork()) \{\
+\
+        case 0: /* child */\
+                dup2(pfd[pos+1], 1);        /* this end of the pipe becomes the standard output */\
+                dup2(pfd[pos-2], 0);                 /* this process don't need the other end */\
+\
+                for(int i = 1; i != pos; i++)\{\
+                    close(pfd[i]);\
+\
+                \}\
+                execvp(cmd[0], cmd);        /* run the command */\
+                perror(*cmd);        /* it failed! */\
+\
+        default: /* parent does nothing */\
+                break;\
+\
+        case -1:\
+                perror("fork");\
+                exit(1);\
+        \}\
+\}\
+\
+void rundest(int pfd[], char*cmd[], int pos)        /* run the second part of the pipeline, cmd2 */\
+\{\
+        int pid;\
+\
+        switch (pid = fork()) \{\
+\
+        case 0: /* child */\
+                dup2(pfd[pos-2], 0);        /* this end of the pipe becomes the standard input */\
+\
+                for(int i = 0; i < pos; i++)\{\
+                    if(i != pos-2)\{\
+                        close(pfd[i]);\
+                    \}\
+                \}\
+                execvp(cmd[0], cmd);        /* run the command */\
+                perror(*cmd);        /* it failed! */\
+\
+        default: /* parent does nothing */\
+                break;\
+\
+        case -1:\
+                perror("fork");\
+                exit(1);\
+        \}\
+\}}
