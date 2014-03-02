@@ -1,3 +1,10 @@
+/*
+ * *********************************************
+ * * 416 Operating System Design Assignment 3
+ * * Authors: Nikolay Feldman, Janelle Barcia
+ * *********************************************
+ * */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -178,15 +185,6 @@ int main(int argc, char **argv){
 		}
 
 		tokensToCommands(buffer, tokens, tokensSize);
-		int i, j;
-		for (i = 0; i < cmdsSize; ++i) {
-			printf("count %d - ", cmds[i].cmdargc);
-			for (j = 0; j < cmds[i].cmdargc; ++j) {
-				printf("%s ", cmds[i].cmdargv[j]);
-			}
-			printf("\n");
-		}
-		printf("command size: %d\n",cmdsSize);
 
 		/*when there is only one command, no pipes are needed*/
 		if(cmdsSize == 1){
@@ -200,6 +198,7 @@ int main(int argc, char **argv){
 		}else{
 			/*show when you try any commands that have at least one pipe.*/
 			char** allcommands[cmdsSize];
+			int i;
 			for (i = 0; i < cmdsSize; ++i)
 				allcommands[i] = cmds[i].cmdargv;
 
@@ -256,7 +255,6 @@ void runcmd(int in, int out, char **cmd){
 			if (out >= 0){
 				dup2(out, 1);     /* change output destination */
 			}
-			fprintf(stderr, "execvp(\"%s\")\n", cmd[0]);    /* debug */
 			execvp(cmd[0], cmd);  /* run the command */
 			perror(cmd[0]);    /* it failed! */
 
@@ -279,7 +277,6 @@ void runonecmd(Command * cmd){
 
 		case 0: 
 			/*child*/
-			fprintf(stderr, "execvp(\"%s\")\n", cmd->cmdargv[0]);
 			execvp(cmd->cmdargv[0], cmd->cmdargv);  /*run command*/
 			perror(cmd->cmdargv[0]);    /*something went wrong!*/
 
