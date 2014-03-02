@@ -13,6 +13,7 @@
 #include <sys/wait.h>
 
 #define BUFSIZE 1000
+#define MAXARGS 50
 
 
 typedef struct Token {
@@ -32,9 +33,10 @@ struct Builtins{
 };
 
 char formatBuffer[10];
-Command cmds[50];
+Command cmds[MAXARGS];
 int cmdsSize = 0;
 
+inline int aboveTokenMax(int);
 void runonecmd(Command * cmd);
 void runcmd(int in, int out, char **cmd);
 void exitShell(void);
@@ -44,6 +46,10 @@ void shell_exit(Command *);
 int checkBuiltins(Command *, struct Builtins *);
 void clean();
 
+inline int aboveTokenMax(int tokensSize) {
+	return (tokensSize == MAXARGS) ? 1 : 0;
+}
+
 int parse(char *buffer, int buflen, Token *tokens, int *tokensSize, int argc, char **argv){
 	int i, dQuoteOpen=0, sQuoteOpen=0;
 	int start = -1; /* start of token, end of token will be i, -1 means need a starting point*/
@@ -51,6 +57,7 @@ int parse(char *buffer, int buflen, Token *tokens, int *tokensSize, int argc, ch
 	{
 		if (buffer[i] == '"' && !sQuoteOpen) {
 			if (dQuoteOpen) { /*closing double quote found, make token*/
+				if (aboveTokenMax(*tokensSize)) return 3;
 				tokens[*tokensSize].start = start;
 				tokens[*tokensSize].len = i - start;
 				++(*tokensSize);
@@ -62,6 +69,7 @@ int parse(char *buffer, int buflen, Token *tokens, int *tokensSize, int argc, ch
 			} 
 		} else if (buffer[i] == '\'' && !dQuoteOpen) {
 			if (sQuoteOpen) { /*closing singe quote found, make token*/
+				if (aboveTokenMax(*tokensSize)) return 3;
 				tokens[*tokensSize].start = start;
 				tokens[*tokensSize].len = i - start;
 				++(*tokensSize);
@@ -75,17 +83,19 @@ int parse(char *buffer, int buflen, Token *tokens, int *tokensSize, int argc, ch
 			if (sQuoteOpen || dQuoteOpen) 
 				continue;
 			if (start == -1) {
-				if (buffer[i] == ' ') /*space, continue onto next char, still looking for start*/
+				if (buffer[i] == ' ' || buffer[i] == '\t') /*space, continue onto next char, still looking for start*/
 					continue;
 				start = i; /*nonspace, now our starting point*/
 				if (buffer[i] == '|') {
+					if (aboveTokenMax(*tokensSize)) return 3;
 					tokens[*tokensSize].start = start;
 					tokens[*tokensSize].len = 1;
 					++(*tokensSize);
 					start = -1;
 				}
 			} else { /*not looking for start, token is already building*/
-				if (buffer[i] == ' ' || buffer[i] == '|') { /*space or pipe found, token completed*/
+				if (buffer[i] == ' ' || buffer[i] == '|' || buffer[i] == '\t') { /*space or pipe found, token completed*/
+					if (aboveTokenMax(*tokensSize)) return 3;
 					tokens[*tokensSize].start = start;
 					tokens[*tokensSize].len = i - start;
 					++(*tokensSize);
@@ -100,10 +110,15 @@ int parse(char *buffer, int buflen, Token *tokens, int *tokensSize, int argc, ch
 	if (start > -1) { /*loop ended with last token still not added to array*/
 		if (dQuoteOpen || sQuoteOpen)
 			return 1; /*error*/
+		if (aboveTokenMax(*tokensSize)) return 3;
 		tokens[*tokensSize].start = start;
 		tokens[*tokensSize].len = i - start;
 		++(*tokensSize);
 	}
+	if (*tokensSize == 0)
+		return 2;
+	if (start == -1 && buffer[tokens[(*tokensSize) - 1].start] == '|' )
+		return 4; /*error, last token is a pipe*/
 
 	return 0;
 }
@@ -166,7 +181,7 @@ int main(int argc, char **argv){
 	builtins[1].f = &shell_exit;
 
 	/*create tokens array*/
-	Token tokens[50];
+	Token tokens[MAXARGS];
 	int tokensSize = 0; /*Number of elements in Token array*/
 
 	char buffer[BUFSIZE];
@@ -174,14 +189,25 @@ int main(int argc, char **argv){
 
 
 	while (1){
-		printf("\n$ ");
+		printf("$ ");
 		fgets(buffer, BUFSIZE, stdin);
 		int buflen = strlen(buffer)-1;
+		if (buflen == -1) { /* EOF */
+			exit(0);
+		}
 		buffer[buflen] = '\0';
 
-		if (parse(buffer, buflen, tokens, &tokensSize, argc, argv) > 0) {
-			fprintf(stderr, "Failed on parsing arguments, invalid input.\n");
-			return 1;
+		int parseResult;
+		if ( (parseResult = parse(buffer, buflen, tokens, &tokensSize, argc, argv)) > 0) {
+			switch(parseResult) {
+				case 1: fprintf(stderr, "Failed: quote mismatch\n");
+								break;
+				case 3: fprintf(stderr, "Failed: You have entered too many arguments\n");
+								break;
+				case 4: fprintf(stderr, "Failed: Trailing pipe found\n");
+			}
+			tokensSize = 0;
+			continue;
 		}
 
 		tokensToCommands(buffer, tokens, tokensSize);

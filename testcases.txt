@@ -1,4 +1,4 @@
-416 Project 4 Test Cases
+416 Project 3 Test Cases
 Janelle Barcia, Nikolay Feldman
 1.Empty Command #1 (new line)
 -***(seg faults)
@@ -20,7 +20,7 @@ Janelle Barcia, Nikolay Feldman
 8. Handle too many arguments gracefully
 -***running (echo a b c d e f g h i j k l m n o p q r s t u v w x y z a b c d e f g h i j k l m n o p q r s t u v w x y z a b c d e f g h i j k l m n o p q r s t u v w x y z a b c d e f g h i j k l m n o p q r s t u v w x y z) segfaults
 -error code is printed
-9.Quotes should be handled properly (echo "abc" "def" 'ghi' 'jkl’)
+9.Quotes should be handled properly (echo "abc" "def" 'ghi' 'jkl')
 -*** gets stuck in infinite loop
 -abc def ghi jkl outputs
 10. Spaces within quotes should be parsed correctly. (./echoargs 'abc def ghi' "j     k   l”)
