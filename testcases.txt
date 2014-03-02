@@ -1,0 +1,51 @@
+416 Project 4 Test Cases
+Janelle Barcia, Nikolay Feldman
+1.Empty Command #1 (new line)
+-***(seg faults)
+-new line prompt shows
+2. Empty Command #2 (spaces and tabs with new line)
+-***(says there is no such command, should just be another prompt)
+-new line prompt shows
+3. Exit on the end of the file (control D)
+-***no such file or directory shown
+-exits cleanly
+4. A shell prompt for each line of input
+-prompt on line of imput
+5. No shell prompt if the standard input is not a terminal ((echo echo abc;echo echo def;echo echo ghi)|./shell)
+-***segfaults on parsing
+6. The shell should run a simple command with arguments
+-echo hello, world (outputs hello, world with process)
+7. The shell should print an exit code for each process that terminates.
+-prints process with exit for each proces
+8. Handle too many arguments gracefully
+-***running (echo a b c d e f g h i j k l m n o p q r s t u v w x y z a b c d e f g h i j k l m n o p q r s t u v w x y z a b c d e f g h i j k l m n o p q r s t u v w x y z a b c d e f g h i j k l m n o p q r s t u v w x y z) segfaults
+-error code is printed
+9.Quotes should be handled properly (echo "abc" "def" 'ghi' 'jkl’)
+-*** gets stuck in infinite loop
+-abc def ghi jkl outputs
+10. Spaces within quotes should be parsed correctly. (./echoargs 'abc def ghi' "j     k   l”)
+-***prints error with parsing, but should run
+11. Mismatched quote, ex: echo 'abc
+-error message printed and exited
+12. Mismatched quote 2, ex: echo 'abc"
+-error message printed and exited
+13. Single Pipe command should work, ex: ls -laF /|tr a-z A-Z
+-prints successfully
+14. Pipeline of three command should work, ex: ls -alF  / | grep bin | cat -n
+-prints successfully
+15. Pipeline of more than three commands should work, ex: ls -alF  / | grep bin | tr a-z 'A-Z' |rev|cat -n
+-prints successfully
+16. The cd command should work with one argument, ex: cd /etc
+-prints successfully
+17. cd command should work with no arguments, ex: cd pwd prints home directory
+-prints successfully
+18. cd command should barf when given more than one argument, ex: cd /etc /home
+-error message printed
+19. The exit command should exit with no arguments
+-exits successfully
+20. The exit command should exit with an argument, ex: exit 123
+-exits successfully and prints 123
+21. Check that the shell is able to accept at least 10 commands, ex: (typeset -i i;i=0;while [ $i -lt 10 ];do echo echo $i;i=i+1;done)|./myshell
+-***fails on parsing, segfault
+22. Shell accepts at least 1000 commands (typeset -i i;i=0;while [ $i -lt 1000 ];do echo echo $i;i=i+1;done)|./myshell)
+-***fails on parsing, segfault
