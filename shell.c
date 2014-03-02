@@ -26,7 +26,7 @@ typedef struct Command {
 } Command;
 
 void runonecmd(Command *cmd);
-void runcmd(int in, int out, char **cmd);   /* pk: changed char * to char ** */
+void runcmd(int in, int out, char **cmd);
 void exitShell(void);
 void cdShell(void);
 
@@ -92,12 +92,10 @@ int parse(char *buffer, int buflen, Token *tokens, int *tokensSize, int argc, ch
         ++(*tokensSize);
     }
 
-
     return 0;
 }
 
-char *format(Token *token)
-{
+char *format(Token *token){
     formatBuffer[0] = '%';
     formatBuffer[1] = '.';
     formatBuffer[2] = '\0';
@@ -192,8 +190,8 @@ int main(int argc, char **argv){
             printf("%s - %s\n", cmds[i].cmd, cmds[i].args);
         }
         printf("command size: %d\n",cmdsSize);
-        //pipe array, amount of commands -1, two file descriptors
-        
+
+        //when there is only one command, no pipes are needed
         if(cmdsSize == 1){
             runonecmd(cmds);
         }else{
@@ -202,10 +200,11 @@ int main(int argc, char **argv){
             //isn't in the correct format, perhaps not terminated by a null character correctly. if the parsing worked
             //the "allcommands[currcmd]" line could just be replaced with "cmds[i].args".
             char** allcommands[4];
-            char *cmd1[] = { "cat", "/etc/passwd", 0 }; /* pk: changed text to the password file */
+            char *cmd1[] = { "cat", "/etc/passwd", 0 };
             char *cmd2[] = { "tr", "A-Z", "a-z", 0 };
             char *cmd3[] = { "tr", "-C", "a-z", "\n", 0 };
             char *cmd4[] = { "sort", 0 };
+
             allcommands[0] = cmd1;
             allcommands[1] = cmd2;
             allcommands[2] = cmd3;
@@ -213,19 +212,26 @@ int main(int argc, char **argv){
 
             cmdsSize = 4;
             int currcmd = 0;
+            //runs the amount of commands inputted
             while(currcmd < cmdsSize){
+
+                //for the first command only one end of the pipe has to be closed
                 if(currcmd == 0){
                     pipe(cmds[currcmd].fd);
                     runcmd(-1, cmds[currcmd].fd[1], allcommands[currcmd]);
                     close(cmds[currcmd].fd[1]);
                 }else if(currcmd == (cmdsSize-1)){
+                    //for the last command the last pipe end has to be closed as well as printing out the process status
                     runcmd(cmds[currcmd-1].fd[0], -1, allcommands[currcmd]);
-                    close(cmds[currcmd-1].fd[0]); 
+                    close(cmds[currcmd-1].fd[0]);
+
+                    //this is the last command
                     while ((pid = wait(&status)) != -1){
                         fprintf(stderr, "process %d exits with %d\n", pid, WEXITSTATUS(status));
                     }
                     break;
                 }else{
+                    //for all commands in the middle the std in and out of the pipes must be closed
                     pipe(cmds[currcmd].fd);
                     runcmd(cmds[currcmd-1].fd[0], cmds[currcmd].fd[1], allcommands[currcmd]);
                     close(cmds[currcmd-1].fd[0]); 
@@ -234,30 +240,30 @@ int main(int argc, char **argv){
                 currcmd++;
             }
 
-            while ((pid = wait(&status)) != -1){
-                fprintf(stderr, "process %d exits with %d\n", pid, WEXITSTATUS(status));
-            }
-
         }
 
-     //   reset(cmds,tokens);
+        //reset(cmds,tokens);
         cmdsSize = 0;
         tokensSize = 0;
-        }
+    }
     exit(0);
 }
 
-void
-runcmd(int in, int out, char **cmd)  /* run a command */
-{
+/* runcmd takes in an array of commands terminated by null.
+*/
+void runcmd(int in, int out, char **cmd){
     int pid;
 
     switch (pid = fork()) {
 
     case 0: /* child */
-        if (in >= 0) dup2(in, 0);   /* pk: change input source */
-        if (out >= 0) dup2(out, 1);     /* pk: change output destination */
-    fprintf(stderr, "execvp(\"%s\")\n", cmd[0]);    /* pk: debug */
+        if (in >= 0){
+            dup2(in, 0);   /* change input source */
+        }
+        if (out >= 0){
+        dup2(out, 1);     /* change output destination */
+        }
+        fprintf(stderr, "execvp(\"%s\")\n", cmd[0]);    /* debug */
         execvp(cmd[0], cmd);  /* run the command */
         perror(cmd[0]);    /* it failed! */
 
@@ -278,7 +284,7 @@ void runonecmd(Command * cmd){
    // char* temp[] = {cmd[0].cmd, cmd[0].args, NULL};
     switch (pid = fork()) {
 
-    case 0: 
+    case 0:
         //child
         fprintf(stderr, "execvp(\"%s\"), args: %s\n", cmd[0].cmd,cmd[0].args);
         execlp(cmd[0].cmd, cmd[0].args);  //run command
