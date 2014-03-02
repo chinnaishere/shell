@@ -22,10 +22,11 @@ typedef struct Token {
 typedef struct Command {
     char *cmd; //cmd to call
     char *args; //args to pass to that call
+    int fd[2];
 } Command;
 
 void runonecmd(Command *cmd);
-void runcmd(int in, int out, Command *cmd);   /* pk: changed char * to char ** */
+void runcmd(int in, int out, char **cmd);   /* pk: changed char * to char ** */
 void exitShell(void);
 void cdShell(void);
 
@@ -117,13 +118,13 @@ void tokensToCommands(char *buffer, Token *tokens, int tokensSize, Command *cmds
             tok[0] = '\0';
             strncat(tok, buffer + tokens[start].start, tokens[start].len);
             cmds[*cmdsSize].cmd = tok;
-            
+
             int j, argsize = 0;
-            for (j = start; j < i; ++j) //go through all tokens up to the pipe which is in cell i, count size to malloc
+            for (j = start+1; j < i; ++j) //go through all tokens up to the pipe which is in cell i, count size to malloc
                 argsize += tokens[j].len + 1; //plus 1 for space and/or nul terminator
             tok = (char *)malloc(sizeof(char)*(argsize));
             tok[0] = '\0';
-            for (j = start; j < i; ++j) { //go through all tokens up to the pipe which is in cell i
+            for (j = start+1; j < i; ++j) { //go through all tokens up to the pipe which is in cell i
                 strncat(tok, buffer + tokens[j].start, tokens[j].len);
                 if (j < i-1)
                     strncat(tok, " ", 1);
@@ -142,11 +143,11 @@ void tokensToCommands(char *buffer, Token *tokens, int tokensSize, Command *cmds
     cmds[*cmdsSize].cmd = tok;
 
     int j, argsize = 0;
-    for (j = start; j < i; ++j) //go through all tokens up to the pipe which is in cell i, count size to malloc
+    for (j = start+1; j < i; ++j) //go through all tokens up to the pipe which is in cell i, count size to malloc
         argsize += tokens[j].len + 1; //plus 1 for space and/or nul terminator
     tok = (char *)malloc(sizeof(char)*(argsize + 1));
     tok[0] = '\0';
-    for (j = start; j < i; ++j) {//go through all tokens up to the pipe which is in cell i
+    for (j = start+1; j < i; ++j) {//go through all tokens up to the pipe which is in cell i
         strncat(tok, buffer + tokens[j].start, tokens[j].len);
         if (j < i-1)
             strncat(tok, " ", 1);
@@ -155,17 +156,6 @@ void tokensToCommands(char *buffer, Token *tokens, int tokensSize, Command *cmds
     cmds[*cmdsSize].args = tok;
     ++(*cmdsSize);
 
-}
-
-/*set command and token memory to null for next userinput*/
-void reset(Command cmds[50], Token tokens[50]){
-      int k;
-    for(k = 0; k <= 49; k++){
-        cmds[k].cmd = NULL;
-        cmds[k].args = NULL;
-        tokens[k].start = 0;
-        tokens[k].len = 0;
-    }
 }
 int main(int argc, char **argv){
 
@@ -185,7 +175,7 @@ int main(int argc, char **argv){
     char buffer[BUFSIZE];
     int pid, status;
 
-    int currcmd = 0;
+
     while (1){
         fgets(buffer, BUFSIZE, stdin);
         int buflen = strlen(buffer)-1;
@@ -197,74 +187,81 @@ int main(int argc, char **argv){
         }
 
         tokensToCommands(buffer, tokens, tokensSize, cmds, &cmdsSize);
+        int i;
+        for (i = 0; i < cmdsSize; ++i) {
+            printf("%s - %s\n", cmds[i].cmd, cmds[i].args);
+        }
         printf("command size: %d\n",cmdsSize);
         //pipe array, amount of commands -1, two file descriptors
-         int fd[cmdsSize-1][2];
-         //initializes pipe array
-                int k;
-        for(k = 0; k < (cmdsSize-1); k++){
-            fd[k][0] = 0;
-            fd[k][1] = 0;
-        }
-        //if there is only one command, no pipes are needed
+        
         if(cmdsSize == 1){
-            runonecmd(&cmds[0]);
-            break;
+            runonecmd(cmds);
         }else{
-            //open and close pipes for every command
+
+            //i did a test to see if pipes work without using parse method. i think the argument array still
+            //isn't in the correct format, perhaps not terminated by a null character correctly. if the parsing worked
+            //the "allcommands[currcmd]" line could just be replaced with "cmds[i].args".
+            char** allcommands[4];
+            char *cmd1[] = { "cat", "/etc/passwd", 0 }; /* pk: changed text to the password file */
+            char *cmd2[] = { "tr", "A-Z", "a-z", 0 };
+            char *cmd3[] = { "tr", "-C", "a-z", "\n", 0 };
+            char *cmd4[] = { "sort", 0 };
+            allcommands[0] = cmd1;
+            allcommands[1] = cmd2;
+            allcommands[2] = cmd3;
+            allcommands[3] = cmd4;
+
+            cmdsSize = 4;
+            int currcmd = 0;
             while(currcmd < cmdsSize){
                 if(currcmd == 0){
-                    printf("calling source\n");
-                    pipe(fd[currcmd]);
-                    runcmd(-1, fd[currcmd][1], &cmds[currcmd]);
-                    close(fd[currcmd][1]);
-                }else if(currcmd != (cmdsSize-1)){
-                    pipe(fd[currcmd]);
-                    runcmd(fd[currcmd-1][0], fd[currcmd][1], &cmds[currcmd]);
-                    close(fd[currcmd-1][0]);
-                    close(fd[currcmd][1]);
+                    pipe(cmds[currcmd].fd);
+                    runcmd(-1, cmds[currcmd].fd[1], allcommands[currcmd]);
+                    close(cmds[currcmd].fd[1]);
+                }else if(currcmd == (cmdsSize-1)){
+                    runcmd(cmds[currcmd-1].fd[0], -1, allcommands[currcmd]);
+                    close(cmds[currcmd-1].fd[0]); 
+                    while ((pid = wait(&status)) != -1){
+                        fprintf(stderr, "process %d exits with %d\n", pid, WEXITSTATUS(status));
+                    }
+                    break;
                 }else{
-                    printf("calling destination\n");
-                    runcmd(fd[currcmd-1][0], -1, &cmds[currcmd]);
-                    close(fd[currcmd-1][0]);
+                    pipe(cmds[currcmd].fd);
+                    runcmd(cmds[currcmd-1].fd[0], cmds[currcmd].fd[1], allcommands[currcmd]);
+                    close(cmds[currcmd-1].fd[0]); 
+                    close(cmds[currcmd].fd[1]); 
                 }
                 currcmd++;
             }
-            //closes all pipes
-                        int j;
-            for(j = 0; j < (cmdsSize-1); j++){
-                close(fd[j][0]);
-                close(fd[j][1]);
+
+            while ((pid = wait(&status)) != -1){
+                fprintf(stderr, "process %d exits with %d\n", pid, WEXITSTATUS(status));
             }
+
         }
 
-        //pick up all dead children and print process status
-        while ((pid = wait(&status)) != -1){
-            fprintf(stderr, "process %d exits with %d\n", pid, WEXITSTATUS(status));
-        }
-        reset(cmds,tokens);
+     //   reset(cmds,tokens);
         cmdsSize = 0;
         tokensSize = 0;
         }
     exit(0);
 }
 
-/*
-runcmd is sed to run commands with multiple pipes that change the input source and destination.
-*/
-void runcmd(int in, int out, Command * cmd){
+void
+runcmd(int in, int out, char **cmd)  /* run a command */
+{
     int pid;
 
     switch (pid = fork()) {
 
-    case 0: //child
-        if (in >= 0) dup2(in, 0);   //change input source
-        if (out >= 0) dup2(out, 1);     //change input destination
-      fprintf(stderr, "execvp(\"%s\"), args: %s\n", cmd[0].cmd,cmd[0].args); 
-        execvp(cmd[0].cmd, &cmd[0].args); 
-        perror(cmd[0].cmd);  //something went wrong!
+    case 0: /* child */
+        if (in >= 0) dup2(in, 0);   /* pk: change input source */
+        if (out >= 0) dup2(out, 1);     /* pk: change output destination */
+    fprintf(stderr, "execvp(\"%s\")\n", cmd[0]);    /* pk: debug */
+        execvp(cmd[0], cmd);  /* run the command */
+        perror(cmd[0]);    /* it failed! */
 
-    default: //parent
+    default: /* parent does nothing */
         break;
 
     case -1:
@@ -272,6 +269,7 @@ void runcmd(int in, int out, Command * cmd){
         exit(1);
     }
 }
+
 /*
 runonecmd is sed to run single commands, without using any instances of pipes.
 */
@@ -282,8 +280,8 @@ void runonecmd(Command * cmd){
 
     case 0: 
         //child
-        fprintf(stderr, "execvp(\"%s\"), args: %s\n", cmd[0].cmd);
-        execvp(cmd[0].cmd, &cmd[0].args);  //run command
+        fprintf(stderr, "execvp(\"%s\"), args: %s\n", cmd[0].cmd,cmd[0].args);
+        execlp(cmd[0].cmd, cmd[0].args);  //run command
         perror(cmd[0].cmd);    //something went wrong!
 
     default: 
