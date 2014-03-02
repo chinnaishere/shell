@@ -9,7 +9,7 @@
 
 char formatBuffer[10];
 
-struct Builtins { 
+struct Builtins{ 
     char *name; /* name of function */ 
     int (*f)(); /* function to execute for the built-in command */ 
 };
@@ -25,13 +25,12 @@ typedef struct Command {
     int fd[2];
 } Command;
 
-void runonecmd(Command *cmd);
+void runonecmd(Command * cmd);
 void runcmd(int in, int out, char **cmd);
 void exitShell(void);
 void cdShell(void);
 
-int parse(char *buffer, int buflen, Token *tokens, int *tokensSize, int argc, char **argv)
-{
+int parse(char *buffer, int buflen, Token *tokens, int *tokensSize, int argc, char **argv){
     int i, dQuoteOpen=0, sQuoteOpen=0;
     int start = -1; // start of token, end of token will be i, -1 means need a starting point
     for (i = 0; i < buflen; ++i) 
@@ -106,8 +105,7 @@ char *format(Token *token){
     return formatBuffer;
 }
 
-void tokensToCommands(char *buffer, Token *tokens, int tokensSize, Command *cmds, int *cmdsSize)
-{
+void tokensToCommands(char *buffer, Token *tokens, int tokensSize, Command *cmds, int *cmdsSize){
     int start = 0;
     int i;
     for (i = 0; i < tokensSize; ++i) {
@@ -155,6 +153,7 @@ void tokensToCommands(char *buffer, Token *tokens, int tokensSize, Command *cmds
     ++(*cmdsSize);
 
 }
+
 int main(int argc, char **argv){
 
     //create builtins
@@ -193,12 +192,12 @@ int main(int argc, char **argv){
 
         //when there is only one command, no pipes are needed
         if(cmdsSize == 1){
-            runonecmd(cmds);
+            runonecmd(&cmds[0]);
         }else{
-
             //i did a test to see if pipes work without using parse method. i think the argument array still
             //isn't in the correct format, perhaps not terminated by a null character correctly. if the parsing worked
-            //the "allcommands[currcmd]" line could just be replaced with "cmds[i].args".
+            //the "allcommands[currcmd]" line could just be replaced with "cmds[i].args". the manually added input will
+            //show when you try any commands that have at least one pipe.
             char** allcommands[4];
             char *cmd1[] = { "cat", "/etc/passwd", 0 };
             char *cmd2[] = { "tr", "A-Z", "a-z", 0 };
@@ -226,9 +225,6 @@ int main(int argc, char **argv){
                     close(cmds[currcmd-1].fd[0]);
 
                     //this is the last command
-                    while ((pid = wait(&status)) != -1){
-                        fprintf(stderr, "process %d exits with %d\n", pid, WEXITSTATUS(status));
-                    }
                     break;
                 }else{
                     //for all commands in the middle the std in and out of the pipes must be closed
@@ -241,7 +237,9 @@ int main(int argc, char **argv){
             }
 
         }
-
+        while ((pid = wait(&status)) != -1){
+            fprintf(stderr, "process %d exits with %d\n", pid, WEXITSTATUS(status));
+        }
         //reset(cmds,tokens);
         cmdsSize = 0;
         tokensSize = 0;
@@ -261,7 +259,7 @@ void runcmd(int in, int out, char **cmd){
             dup2(in, 0);   /* change input source */
         }
         if (out >= 0){
-        dup2(out, 1);     /* change output destination */
+            dup2(out, 1);     /* change output destination */
         }
         fprintf(stderr, "execvp(\"%s\")\n", cmd[0]);    /* debug */
         execvp(cmd[0], cmd);  /* run the command */
@@ -277,17 +275,17 @@ void runcmd(int in, int out, char **cmd){
 }
 
 /*
-runonecmd is sed to run single commands, without using any instances of pipes.
+runonecmd is set to run single commands, without using any instances of pipes.
 */
 void runonecmd(Command * cmd){
     int pid;
    // char* temp[] = {cmd[0].cmd, cmd[0].args, NULL};
     switch (pid = fork()) {
 
-    case 0:
+    case 0: 
         //child
-        fprintf(stderr, "execvp(\"%s\"), args: %s\n", cmd[0].cmd,cmd[0].args);
-        execlp(cmd[0].cmd, cmd[0].args);  //run command
+        fprintf(stderr, "execvp(\"%s\"), args: %s\n", cmd[0].cmd);
+        execvp(cmd[0].cmd, &cmd[0].args);  //run command
         perror(cmd[0].cmd);    //something went wrong!
 
     default: 
