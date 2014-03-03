@@ -5,52 +5,27 @@
  * *********************************************
  * */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/wait.h>
+#include "shell.h"
 
-#define BUFSIZE 1000
-#define MAXARGS 50
-
-
-typedef struct Token {
-	int start;
-	int len;
-} Token;
-
-typedef struct Command {
-	int cmdargc; /*number of arguments*/
-	char **cmdargv; /*args to pass to that call*/
-	int fd[2];
-} Command;
-
-struct Builtins{ 
-	char *name; /* name of function */ 
-	void (*f)(Command *); /* function to execute for the built-in command */ 
-};
-
-char formatBuffer[10];
 Command cmds[MAXARGS];
 int cmdsSize = 0;
 
-inline int aboveTokenMax(int);
-void runonecmd(Command * cmd);
-void runcmd(int in, int out, char **cmd);
-void exitShell(void);
-void cdShell(void);
-void shell_cd(Command *);
-void shell_exit(Command *);
-int checkBuiltins(Command *, struct Builtins *);
-void clean();
-
+/* An inline function to just check if input went above our argument limit
+ * PARAMETERS
+ * tokensSize: current number of tokens to compare to limit
+ * */
 inline int aboveTokenMax(int tokensSize) {
 	return (tokensSize == MAXARGS) ? 1 : 0;
 }
 
-int parse(char *buffer, int buflen, Token *tokens, int *tokensSize, int argc, char **argv){
+/* Parse the input recieved from stdin and break into tokens
+ * PARAMETERS
+ * *buffer: buffer that contains entire stdin
+ * buflen: length of buffer
+ * *tokens: array that will be populated with parsed tokens information
+ * *tokensSize: number of tokens parsed and inside tokens array
+ * */
+int parse(char *buffer, int buflen, Token *tokens, int *tokensSize){
 	int i, dQuoteOpen=0, sQuoteOpen=0;
 	int start = -1; /* start of token, end of token will be i, -1 means need a starting point*/
 	for (i = 0; i < buflen; ++i) 
@@ -123,17 +98,13 @@ int parse(char *buffer, int buflen, Token *tokens, int *tokensSize, int argc, ch
 	return 0;
 }
 
-char *format(Token *token){
-	formatBuffer[0] = '%';
-	formatBuffer[1] = '.';
-	formatBuffer[2] = '\0';
-	char len[5];
-	sprintf(len, "%d", token->len);
-	strcat(formatBuffer, len);
-	strcat(formatBuffer, "s\n");
-	return formatBuffer;
-}
-
+/* Given an array of parsed token indexes, the number of tokens parsed
+ * and the buffer, create full commands from these tokens.
+ *	PARAMETERS
+ *	*buffer: entire input from stdin
+ *	*tokens: parsed token information
+ *	tokensSize: number of tokens
+ */
 void tokensToCommands(char *buffer, Token *tokens, int tokensSize){
 	int start = 0;
 	int i;
@@ -171,8 +142,134 @@ void tokensToCommands(char *buffer, Token *tokens, int tokensSize){
 	++cmdsSize;
 }
 
-int main(int argc, char **argv){
+/* runcmd takes in an array of commands terminated by null and runs the command
+ * piping from in to out
+ * PARAMETERS
+ * in: fd for input
+ * out: fd for output
+ * **cmd: command to run and its arguments
+ */
+void runcmd(int in, int out, char **cmd){
+	int pid;
 
+	switch (pid = fork()) {
+
+		case 0: /* child */
+			if (in >= 0){
+				dup2(in, 0);   /* change input source */
+			}
+			if (out >= 0){
+				dup2(out, 1);     /* change output destination */
+			}
+			execvp(cmd[0], cmd);  /* run the command */
+			perror(cmd[0]);    /* it failed! */
+
+		default: /* parent does nothing */
+			break;
+
+		case -1:
+			perror("fork");
+			exit(1);
+	}
+}
+
+/*
+ * runonecmd is set to run single commands, without using any instances of pipes.
+ * PARAMETERS
+ * *cmd: Command to run and its arguments
+ */
+void runonecmd(Command * cmd){
+	int pid;
+	/* char* temp[] = {cmd[0].cmd, cmd[0].args, NULL};*/
+	switch (pid = fork()) {
+
+		case 0: 
+			/*child*/
+			execvp(cmd->cmdargv[0], cmd->cmdargv);  /*run command*/
+			perror(cmd->cmdargv[0]);    /*something went wrong!*/
+
+		default: 
+			/*parent does nothing*/
+			break;
+
+		case -1:
+			perror("fork");
+			exit(1);
+	}
+}
+
+/* Builtin command function that changes directory and prints
+ * current directory if successful. Displays error otherwise
+ * PARAMETERS
+ * *cmd: command and its argument(s) (path)
+ */
+void shell_cd(Command *cmd)
+{
+	if (cmd->cmdargc == 1) { /*change to home dir*/
+		if (chdir(getenv("HOME")) == -1) {
+			perror("ERROR: Failed to change to HOME dir.");
+			return;
+		}
+	} else if (cmd->cmdargc == 2) { /*change to path*/
+		if (chdir(cmd->cmdargv[1]) == -1) {
+			perror("ERROR: Failed to change dir.");
+			return;
+		}
+	} else {
+		fprintf(stderr, "ERROR:Invalid number of arguments for cd\n");
+		return;
+	}
+	/*print current working dir*/
+	char *dir = getcwd(NULL, 200);
+	printf("\n%s", dir);
+	free(dir);
+}
+
+/* Builtin command function that exits the shell program
+ * PARAMETERS
+ * *cmd: command and its argument(s) (exit code)
+ */
+void shell_exit(Command *cmd)
+{
+	if (cmd->cmdargc == 1) {
+		clean();
+		exit(0);
+	}
+	int code = atoi(cmd->cmdargv[1]);
+	clean();
+	exit(code);
+}
+
+/* Function that is called on every shell input to check if the 
+ * command entered is one of the builtin commands. If it is, call
+ * that command through its function pointer
+ *
+ */
+int checkBuiltins(Command *cmd, struct Builtins builtins[])
+{
+	int i;
+	for (i = 0; i < 2; ++i)
+		if (strcmp(cmd->cmdargv[0], builtins[i].name) == 0) {
+			(*builtins[i].f)(cmd);
+			return 1;
+		}
+	return 0;
+}
+
+/* Free all the allocated memory
+ */
+void clean()
+{
+	int i;
+	for (i = 0; i < cmdsSize; ++i) {
+		int j, cmdsargc = cmds[i].cmdargc;
+		for (j = 0; j < cmdsargc; ++j)
+			free(cmds[i].cmdargv[j]);
+		free(cmds[i].cmdargv);
+	}
+}
+
+int main(){
 	/*create builtins*/
 	struct Builtins builtins[2];
 	builtins[0].name = "cd";
@@ -200,7 +297,7 @@ int main(int argc, char **argv){
 		buffer[buflen] = '\0';
 
 		int parseResult;
-		if ( (parseResult = parse(buffer, buflen, tokens, &tokensSize, argc, argv)) > 0) {
+		if ( (parseResult = parse(buffer, buflen, tokens, &tokensSize)) > 0) {
 			switch(parseResult) {
 				case 1: fprintf(stderr, "Failed: quote mismatch\n");
 								break;
@@ -268,108 +365,4 @@ int main(int argc, char **argv){
 
 	} while (1);
 	exit(0);
-}
-
-/* runcmd takes in an array of commands terminated by null.
-*/
-void runcmd(int in, int out, char **cmd){
-	int pid;
-
-	switch (pid = fork()) {
-
-		case 0: /* child */
-			if (in >= 0){
-				dup2(in, 0);   /* change input source */
-			}
-			if (out >= 0){
-				dup2(out, 1);     /* change output destination */
-			}
-			execvp(cmd[0], cmd);  /* run the command */
-			perror(cmd[0]);    /* it failed! */
-
-		default: /* parent does nothing */
-			break;
-
-		case -1:
-			perror("fork");
-			exit(1);
-	}
-}
-
-/*
-	 runonecmd is set to run single commands, without using any instances of pipes.
-	 */
-void runonecmd(Command * cmd){
-	int pid;
-	/* char* temp[] = {cmd[0].cmd, cmd[0].args, NULL};*/
-	switch (pid = fork()) {
-
-		case 0: 
-			/*child*/
-			execvp(cmd->cmdargv[0], cmd->cmdargv);  /*run command*/
-			perror(cmd->cmdargv[0]);    /*something went wrong!*/
-
-		default: 
-			/*parent does nothing*/
-			break;
-
-		case -1:
-			perror("fork");
-			exit(1);
-	}
-}
-
-void shell_cd(Command *cmd)
-{
-	if (cmd->cmdargc == 1) { /*change to home dir*/
-		if (chdir(getenv("HOME")) == -1) {
-			perror("ERROR: Failed to change to HOME dir.");
-			return;
-		}
-	} else if (cmd->cmdargc == 2) { /*change to path*/
-		if (chdir(cmd->cmdargv[1]) == -1) {
-			perror("ERROR: Failed to change dir.");
-			return;
-		}
-	} else {
-		fprintf(stderr, "ERROR:Invalid number of arguments for cd\n");
-		return;
-	}
-	/*print current working dir*/
-	char *dir = getcwd(NULL, 200);
-	printf("\n%s", dir);
-	free(dir);
-}
-
-void shell_exit(Command *cmd)
-{
-	if (cmd->cmdargc == 1) {
-		clean();
-		exit(0);
-	}
-	int code = atoi(cmd->cmdargv[1]);
-	clean();
-	exit(code);
-}
-
-int checkBuiltins(Command *cmd, struct Builtins builtins[])
-{
-	int i;
-	for (i = 0; i < 2; ++i)
-		if (strcmp(cmd->cmdargv[0], builtins[i].name) == 0) {
-			(*builtins[i].f)(cmd);
-			return 1;
-		}
-	return 0;
-}
-
-void clean()
-{
-	int i;
-	for (i = 0; i < cmdsSize; ++i) {
-		int j, cmdsargc = cmds[i].cmdargc;
-		for (j = 0; j < cmdsargc; ++j)
-			free(cmds[i].cmdargv[j]);
-		free(cmds[i].cmdargv);
-	}
 }
