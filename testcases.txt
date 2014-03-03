@@ -1,13 +1,10 @@
 416 Project 3 Test Cases
 Janelle Barcia, Nikolay Feldman
 1.Empty Command #1 (new line)
--***(seg faults)
--new line prompt shows
+-new line prompt shows ($)
 2. Empty Command #2 (spaces and tabs with new line)
--***(says there is no such command, should just be another prompt)
--new line prompt shows
+-new line prompt shows ($)
 3. Exit on the end of the file (control D)
--***no such file or directory shown
 -exits cleanly
 4. A shell prompt for each line of input
 -prompt on line of imput
@@ -16,13 +13,11 @@ Janelle Barcia, Nikolay Feldman
 6. The shell should run a simple command with arguments
 -echo hello, world (outputs hello, world with process)
 7. The shell should print an exit code for each process that terminates.
--prints process with exit for each proces
-8. Handle too many arguments gracefully
--***running (echo a b c d e f g h i j k l m n o p q r s t u v w x y z a b c d e f g h i j k l m n o p q r s t u v w x y z a b c d e f g h i j k l m n o p q r s t u v w x y z a b c d e f g h i j k l m n o p q r s t u v w x y z) segfaults
--error code is printed
+-prints process with exit for each process
+8. Handle too many arguments gracefully, ex: echo a b c d e f g h i j k l m n o p q r s t u v w x y z a b c d e f g h i j k l m n o p q r s t u v w x y z a b c d e f g h i j k l m n o p q r s t u v w x y z a b c d e f g h i j k l m n o p q r s t u v w x y z
+-error code is printed for too many args
 9.Quotes should be handled properly (echo "abc" "def" 'ghi' 'jkl')
--*** gets stuck in infinite loop
--abc def ghi jkl outputs
+-outputs as expected, abc def ghi jkl outputs
 10. Spaces within quotes should be parsed correctly. (./echoargs 'abc def ghi' "j     k   l”)
 -***prints error with parsing, but should run
 11. Mismatched quote, ex: echo 'abc
