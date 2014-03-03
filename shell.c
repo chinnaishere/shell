@@ -257,7 +257,7 @@ int checkBuiltins(Command *cmd, struct Builtins builtins[])
 }
 
 /* Free all the allocated memory
- */
+*/
 void clean()
 {
 	int i;
