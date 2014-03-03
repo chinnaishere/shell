@@ -19,7 +19,7 @@ Janelle Barcia, Nikolay Feldman
 9.Quotes should be handled properly (echo "abc" "def" 'ghi' 'jkl')
 -outputs as expected, abc def ghi jkl outputs
 10. Spaces within quotes should be parsed correctly. (./echoargs 'abc def ghi' "j     k   l”)
--***prints error with parsing, but should run
+-correct output, argc arg[0] arg[1] arg[2] show
 11. Mismatched quote, ex: echo 'abc
 -error message printed and exited
 12. Mismatched quote 2, ex: echo 'abc"
