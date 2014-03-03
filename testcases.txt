@@ -1,5 +1,12 @@
-416 Project 3 Test Cases
+416 Project 3
 Janelle Barcia, Nikolay Feldman
+
+Noteworthy Features:
+-Parsing in this program goes through every character in the buffer array with multiple conditions for quotes, spaces and pipes. tokensToCommands converts the parsed buffer into Command struct elements (char**), that can be easily passed to execvp. All of this runs in O(n) time.
+-Piping in this program works by each command having a command struct. Within the command struct there is an array of size 2 to hold the standard in and out. When there is more than one command (and therefore a pipe), main calls one function called “runcmd” to dup2, fork and execvp. Pipes are opened and closed within the main method, where there is a special case for the first command (only one pipe closed), the possible middle commands (two pipes closed) and the last command where another pipe is closed. There is a special method for when there is only one command, as piping is not needed for this instance.
+-Every times the main method while loop loops around waiting for more input, every command struct element is freed from memory in a method called “clean”.
+
+Provided Test Cases:
 1.Empty Command #1 (new line)
 -new line prompt shows ($)
 2. Empty Command #2 (spaces and tabs with new line)
