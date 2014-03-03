@@ -189,7 +189,8 @@ int main(int argc, char **argv){
 
 
 	while (1){
-		printf("$ ");
+		if (isatty(0))
+			printf("$ ");
 		fgets(buffer, BUFSIZE, stdin);
 		int buflen = strlen(buffer)-1;
 		if (buflen == -1) { /* EOF */
@@ -212,6 +213,8 @@ int main(int argc, char **argv){
 
 		tokensToCommands(buffer, tokens, tokensSize);
 
+		printf("TOKENS %d\n\n\n", tokensSize);
+		printf("COMMANDS %d\n\n\n", cmdsSize);
 		/*when there is only one command, no pipes are needed*/
 		if(cmdsSize == 1){
 			if (checkBuiltins(&cmds[0], builtins)) {
