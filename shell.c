@@ -188,7 +188,8 @@ int main(int argc, char **argv){
 	int pid, status;
 
 
-	while (1){
+	do {
+		memset(buffer, '\0', BUFSIZE);
 		if (isatty(0))
 			printf("$ ");
 		fgets(buffer, BUFSIZE, stdin);
@@ -213,8 +214,6 @@ int main(int argc, char **argv){
 
 		tokensToCommands(buffer, tokens, tokensSize);
 
-		printf("TOKENS %d\n\n\n", tokensSize);
-		printf("COMMANDS %d\n\n\n", cmdsSize);
 		/*when there is only one command, no pipes are needed*/
 		if(cmdsSize == 1){
 			if (checkBuiltins(&cmds[0], builtins)) {
@@ -266,7 +265,8 @@ int main(int argc, char **argv){
 		clean();
 		cmdsSize = 0;
 		tokensSize = 0;
-	}
+
+	} while (1);
 	exit(0);
 }
 
