@@ -9,7 +9,7 @@ Janelle Barcia, Nikolay Feldman
 4. A shell prompt for each line of input
 -prompt on line of imput
 5. No shell prompt if the standard input is not a terminal ((echo echo abc;echo echo def;echo echo ghi)|./shell)
--***segfaults on parsing
+-three processes/abc def ghi prints successfully
 6. The shell should run a simple command with arguments
 -echo hello, world (outputs hello, world with process)
 7. The shell should print an exit code for each process that terminates.
@@ -41,6 +41,6 @@ Janelle Barcia, Nikolay Feldman
 20. The exit command should exit with an argument, ex: exit 123
 -exits successfully and prints 123
 21. Check that the shell is able to accept at least 10 commands, ex: (typeset -i i;i=0;while [ $i -lt 10 ];do echo echo $i;i=i+1;done)|./myshell
--***fails on parsing, segfault
+-all 10 process for each command print and exit successfully
 22. Shell accepts at least 1000 commands (typeset -i i;i=0;while [ $i -lt 1000 ];do echo echo $i;i=i+1;done)|./myshell)
--***fails on parsing, segfault
+-all 1000 processes for each command print and exit successfully
