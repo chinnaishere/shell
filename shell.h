@@ -17,14 +17,14 @@
 
 
 typedef struct Token {
-	int start;
-	int len;
+	int start; /*Index for start of token inside buffer*/
+	int len; /*length of this token*/
 } Token;
 
 typedef struct Command {
 	int cmdargc; /*number of arguments*/
-	char **cmdargv; /*args to pass to that call*/
-	int fd[2];
+	char **cmdargv; /*all arguments*/
+	int fd[2]; /*file descriptors for input and output*/
 } Command;
 
 struct Builtins{ 
